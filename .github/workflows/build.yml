@@ -17,13 +17,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
-      - name: Build and test
-        run: |
-          dotnet restore
-          make build
-          make test
-
+          dotnet-version: | 
+              6.0.x
+              8.0.x
   osx-build:
     runs-on: macos-13
     steps:
@@ -31,7 +27,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: | 
+              6.0.x
+              8.0.x
       - name: Set ulimit
         run: ulimit -n 1024
       - name: Build and test
@@ -47,7 +45,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: | 
+              6.0.x
+              8.0.x
       - name: Build and test
         run: |
           dotnet restore
@@ -69,7 +69,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: | 
+              6.0.x
+              8.0.x
       - name: Build and create packages
         run: |
           dotnet restore
