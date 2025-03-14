@@ -25,7 +25,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="librdkafka.redist" Version="2.8.0">
+      <PackageReference Include="librdkafka.redist" Version="2.8.0-gr">
       <PrivateAssets Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">None</PrivateAssets>
     </PackageReference>
   </ItemGroup>
