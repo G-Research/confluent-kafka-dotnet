@@ -999,6 +999,58 @@ namespace Confluent.Kafka
         public ConsumeResult<TKey, TValue> Consume(TimeSpan timeout)
             => Consume(timeout.TotalMillisecondsAsInt());
 
+        /// <summary>
+        /// Consumes a message and invokes the callback with an allocation-free reader.
+        /// Returns true if a message was consumed, false if timeout occurred.
+        /// </summary>
+        /// <param name="millisecondsTimeout">Timeout in milliseconds</param>
+        /// <param name="callback">Callback to invoke with the message reader</param>
+        /// <returns>True if a message was consumed, false if timeout occurred</returns>
+        /// <exception cref="ConsumeException">Thrown when consumption fails</exception>
+        public unsafe bool ConsumeWithCallback(int millisecondsTimeout, Experimental.AllocFreeConsumeCallback callback)
+        {
+            if (callback == null)
+                throw new ArgumentNullException(nameof(callback));
+
+            var msgPtr = kafkaHandle.ConsumerPoll((IntPtr)millisecondsTimeout);
+
+            if (this.handlerException != null)
+            {
+                var ex = this.handlerException;
+                this.handlerException = null;
+                if (msgPtr != IntPtr.Zero)
+                {
+                    Librdkafka.message_destroy(msgPtr);
+                }
+
+                throw ex;
+            }
+
+            if (msgPtr == IntPtr.Zero)
+            {
+                return false; // Timeout occurred
+            }
+
+            try
+            {
+                var msg = (rd_kafka_message*)msgPtr;
+ 
+                // Handle message errors before invoking callback
+                if (msg->err != ErrorCode.NoError && msg->err != ErrorCode.Local_PartitionEOF)
+                {
+                    throw new KafkaException(msg->err);
+                }
+
+                // Create the reader and invoke the callback
+                var reader = new Experimental.MessageReader(msg);
+                callback(in reader);
+                return true;
+            }
+            finally
+            {
+                Librdkafka.message_destroy(msgPtr);
+            }
+        }
 
         /// <inheritdoc/>
         public IConsumerGroupMetadata ConsumerGroupMetadata

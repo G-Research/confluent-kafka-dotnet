@@ -182,6 +182,55 @@ namespace Confluent.Kafka
             Message<TKey, TValue> message,
             Action<DeliveryReport<TKey, TValue>> deliveryHandler = null);
 
+        /// <summary>
+        ///     Asynchronously send a single message to a
+        ///     Kafka topic partition.
+        /// </summary>
+        /// <param name="topicPartition">
+        ///     The topic partition to produce
+        ///     the message to.
+        /// </param>
+        /// <param name="deliveryHandler">
+        ///     A delegate that will be called
+        ///     with a delivery report corresponding to the
+        ///     produce request (if enabled).
+        /// </param>
+        /// <param name="val">
+        ///     Value bytes to produce
+        /// </param>
+        /// <param name="key">
+        ///     Key bytes to produce
+        /// </param>
+        /// <param name="timestamp">
+        ///     Timestamp of the message to be produced
+        /// </param>
+        /// <param name="headers">
+        ///     Optional headers of the message to be produced
+        /// </param>
+        /// <exception cref="ProduceException{TKey,TValue}">
+        ///     Thrown in response to any error that is known
+        ///     immediately (excluding user application logic errors),
+        ///     for example ErrorCode.Local_QueueFull. Asynchronous
+        ///     notification of unsuccessful produce requests is made
+        ///     available via the <paramref name="deliveryHandler" />
+        ///     parameter (if specified). The Error property of the
+        ///     exception / delivery report provides more detailed
+        ///     information.
+        /// </exception>
+        /// <exception cref="System.ArgumentException">
+        ///     Thrown in response to invalid argument values.
+        /// </exception>
+        /// <exception cref="System.InvalidOperationException">
+        ///     Thrown in response to error conditions that reflect
+        ///     an error in the application logic of the calling
+        ///     application.
+        /// </exception>
+        void Produce(
+            TopicPartition topicPartition,
+            ReadOnlySpan<byte> val,
+            ReadOnlySpan<byte> key,
+            Timestamp timestamp,
+            Headers headers);
         
         /// <summary>
         ///     Poll for callback events.

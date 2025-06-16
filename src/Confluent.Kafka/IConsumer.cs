@@ -110,6 +110,7 @@ namespace Confluent.Kafka
         /// </exception>
         ConsumeResult<TKey, TValue> Consume(TimeSpan timeout);
 
+        bool ConsumeWithCallback(int millisecondsTimeout, Experimental.AllocFreeConsumeCallback callback);
 
         /// <summary>
         ///     Gets the (dynamic) group member id of
