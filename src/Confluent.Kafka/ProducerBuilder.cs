@@ -73,6 +73,11 @@ namespace Confluent.Kafka
         ///     The configured log handler.
         /// </summary>
         internal protected Action<IProducer<TKey, TValue>, LogMessage> LogHandler { get; set; }
+        
+        /// <summary>
+        ///     The configured alloc-free delivery handler.
+        /// </summary>
+        internal protected Experimental.AllocFreeDeliveryHandler AllocFreeDeliveryHandler { get; set; }
 
         /// <summary>
         ///     The configured statistics handler.
@@ -125,6 +130,7 @@ namespace Confluent.Kafka
                 logHandler = this.LogHandler == null
                     ? default(Action<LogMessage>)
                     : logMessage => this.LogHandler(producer, logMessage),
+                AllocFreeAllocFreeDeliveryHandler = this.AllocFreeDeliveryHandler,
                 statisticsHandler = this.StatisticsHandler == null
                     ? default(Action<string>)
                     : stats => this.StatisticsHandler(producer, stats),
@@ -256,6 +262,19 @@ namespace Confluent.Kafka
                 throw new InvalidOperationException("Log handler may not be specified more than once.");
             }
             this.LogHandler = logHandler;
+            return this;
+        }
+
+        /// <summary>
+        ///     Set a custom alloc-free delivery handler
+        /// </summary>
+        public ProducerBuilder<TKey, TValue> SetAllocFreeDeliveryHandler(Experimental.AllocFreeDeliveryHandler allocFreeDeliveryHandler)
+        {
+            if (this.AllocFreeDeliveryHandler != null)
+            {
+                throw new ArgumentException("Alloc-free delivery handler may only be specified once");
+            }
+            this.AllocFreeDeliveryHandler = allocFreeDeliveryHandler;
             return this;
         }
 

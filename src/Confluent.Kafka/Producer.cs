@@ -36,6 +36,7 @@ namespace Confluent.Kafka
             public IEnumerable<KeyValuePair<string, string>> config;
             public Action<Error> errorHandler;
             public Action<LogMessage> logHandler;
+            public Experimental.AllocFreeDeliveryHandler AllocFreeAllocFreeDeliveryHandler;
             public Action<string> statisticsHandler;
             public Action<string> oAuthBearerTokenRefreshHandler;
             public Dictionary<string, PartitionerDelegate> partitioners;
@@ -177,6 +178,7 @@ namespace Confluent.Kafka
 
 
         private Action<LogMessage> logHandler;
+        private Experimental.AllocFreeDeliveryHandler allocFreeAllocFreeDeliveryHandler;
         private object loggerLockObj = new object();
         private Librdkafka.LogDelegate logCallbackDelegate;
         private void LogCallback(IntPtr rk, SyslogLevel level, string fac, string buf)
@@ -196,26 +198,34 @@ namespace Confluent.Kafka
 
         private Librdkafka.DeliveryReportDelegate DeliveryReportCallback;
 
-        private void DeliveryReportCallbackImpl(IntPtr rk, IntPtr rkmessage, IntPtr opaque)
+        private unsafe void DeliveryReportCallbackImpl(IntPtr rk, IntPtr rkmessage, IntPtr opaque)
         {
             // Ensure registered handlers are never called as a side-effect of Dispose/Finalize (prevents deadlocks in common scenarios).
             if (ownedKafkaHandle.IsClosed) { return; }
 
             try
             {
-                var msg = Util.Marshal.PtrToStructure<rd_kafka_message>(rkmessage);
+                var msg = (rd_kafka_message*)rkmessage;
+
+                if (allocFreeAllocFreeDeliveryHandler != null)
+                {
+                    // Create the reader and invoke the callback
+                    var reader = new Experimental.MessageReader(msg);
+                    allocFreeAllocFreeDeliveryHandler.Invoke(reader);
+                    return;
+                }
 
                 // the msg._private property has dual purpose. Here, it is an opaque pointer set
                 // by Topic.Produce to be an IDeliveryHandler. When Consuming, it's for internal
                 // use (hence the name).
-                if (msg._private == IntPtr.Zero)
+                if (msg->_private == IntPtr.Zero)
                 {
                     // Note: this can occur if the ProduceAsync overload that accepts a DeliveryHandler
                     // was used and the delivery handler was set to null.
                     return;
                 }
 
-                var gch = GCHandle.FromIntPtr(msg._private);
+                var gch = GCHandle.FromIntPtr(msg->_private);
                 var deliveryHandler = (IDeliveryHandler) gch.Target;
                 gch.Free();
 
@@ -258,14 +268,14 @@ namespace Confluent.Kafka
                     messageStatus = Librdkafka.message_status(rkmessage);
                 }
 
-                deliveryHandler.HandleDeliveryReport(
+                deliveryHandler?.HandleDeliveryReport(
                     new DeliveryReport<Null, Null>
                     {
                         // Topic is not set here in order to avoid the marshalling cost.
                         // Instead, the delivery handler is expected to cache the topic string.
-                        Partition = msg.partition, 
-                        Offset = msg.offset, 
-                        Error = KafkaHandle.CreatePossiblyFatalError(msg.err, null),
+                        Partition = msg->partition, 
+                        Offset = msg->offset, 
+                        Error = KafkaHandle.CreatePossiblyFatalError(msg->err, null),
                         Status = messageStatus,
                         Message = new Message<Null, Null> { Timestamp = new Timestamp(timestamp, (TimestampType)timestampType), Headers = headers }
                     }
@@ -279,8 +289,8 @@ namespace Confluent.Kafka
 
         private void ProduceImpl(
             string topic,
-            byte[] val, int valOffset, int valLength,
-            byte[] key, int keyOffset, int keyLength,
+            ReadOnlySpan<byte> val,
+            ReadOnlySpan<byte> key,
             Timestamp timestamp,
             Partition partition,
             IReadOnlyList<IHeader> headers,
@@ -308,8 +318,8 @@ namespace Confluent.Kafka
 
                 err = KafkaHandle.Produce(
                     topic,
-                    val, valOffset, valLength,
-                    key, keyOffset, keyLength,
+                    val,
+                    key,
                     partition.Value,
                     timestamp.UnixTimestampMs,
                     headers,
@@ -325,8 +335,8 @@ namespace Confluent.Kafka
             {
                 err = KafkaHandle.Produce(
                     topic,
-                    val, valOffset, valLength,
-                    key, keyOffset, keyLength,
+                    val,
+                    key,
                     partition.Value,
                     timestamp.UnixTimestampMs,
                     headers,
@@ -578,6 +588,7 @@ namespace Confluent.Kafka
 
             this.statisticsHandler = baseConfig.statisticsHandler;
             this.logHandler = baseConfig.logHandler;
+            this.allocFreeAllocFreeDeliveryHandler = baseConfig.AllocFreeAllocFreeDeliveryHandler;
             this.errorHandler = baseConfig.errorHandler;
             this.oAuthBearerTokenRefreshHandler = baseConfig.oAuthBearerTokenRefreshHandler;
 
@@ -805,8 +816,8 @@ namespace Confluent.Kafka
 
                     ProduceImpl(
                         topicPartition.Topic,
-                        valBytes, 0, valBytes == null ? 0 : valBytes.Length,
-                        keyBytes, 0, keyBytes == null ? 0 : keyBytes.Length,
+                        new ReadOnlySpan<byte>(valBytes, 0, valBytes?.Length ?? 0),
+                        new ReadOnlySpan<byte>(keyBytes, 0, keyBytes?.Length ?? 0),
                         message.Timestamp, topicPartition.Partition, headers.BackingList,
                         handler);
 
@@ -816,8 +827,8 @@ namespace Confluent.Kafka
                 {
                     ProduceImpl(
                         topicPartition.Topic, 
-                        valBytes, 0, valBytes == null ? 0 : valBytes.Length, 
-                        keyBytes, 0, keyBytes == null ? 0 : keyBytes.Length, 
+                        new ReadOnlySpan<byte>(valBytes, 0, valBytes?.Length ?? 0),
+                        new ReadOnlySpan<byte>(keyBytes, 0, keyBytes?.Length ?? 0),
                         message.Timestamp, topicPartition.Partition, headers.BackingList, 
                         null);
 
@@ -915,8 +926,8 @@ namespace Confluent.Kafka
             {
                 ProduceImpl(
                     topicPartition.Topic,
-                    valBytes, 0, valBytes == null ? 0 : valBytes.Length,
-                    keyBytes, 0, keyBytes == null ? 0 : keyBytes.Length,
+                    new ReadOnlySpan<byte>(valBytes, 0, valBytes?.Length ?? 0),
+                    new ReadOnlySpan<byte>(keyBytes, 0, keyBytes?.Length ?? 0),
                     message.Timestamp, topicPartition.Partition,
                     headers.BackingList,
                     deliveryHandler == null
@@ -936,6 +947,37 @@ namespace Confluent.Kafka
                             Message = message,
                             TopicPartitionOffset = new TopicPartitionOffset(topicPartition, Offset.Unset)
                         });
+            }
+        }
+        
+        /// <inheritdoc/>
+        public void Produce(
+            string topic,
+            ReadOnlySpan<byte> val,
+            ReadOnlySpan<byte> key,
+            Timestamp timestamp,
+            Partition partition,
+            Headers headers)
+        {
+            try
+            {
+                ProduceImpl(
+                    topic,
+                    val,
+                    key,
+                    timestamp,
+                    partition,
+                    headers.BackingList,
+                    null);
+            }
+            catch (KafkaException ex)
+            {
+                throw new ProduceException<TKey, TValue>(
+                    ex.Error,
+                    new DeliveryReport<TKey, TValue>
+                    {
+                        TopicPartitionOffset = new TopicPartitionOffset(new TopicPartition(topic, partition), Offset.Unset)
+                    });
             }
         }
 

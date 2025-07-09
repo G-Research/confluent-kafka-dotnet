@@ -110,6 +110,15 @@ namespace Confluent.Kafka
         /// </exception>
         ConsumeResult<TKey, TValue> Consume(TimeSpan timeout);
 
+        /// <summary>
+        /// Consumes a message and invokes the callback with an allocation-free reader.
+        /// Returns true if a message was consumed, false if timeout occurred.
+        /// </summary>
+        /// <param name="millisecondsTimeout">Timeout in milliseconds</param>
+        /// <param name="callback">Callback to invoke with the message reader</param>
+        /// <returns>True if a message was consumed, false if timeout occurred</returns>
+        /// <exception cref="ConsumeException">Thrown when consumption fails</exception>
+        bool ConsumeWithCallback(int millisecondsTimeout, Experimental.AllocFreeConsumeCallback callback);
 
         /// <summary>
         ///     Gets the (dynamic) group member id of

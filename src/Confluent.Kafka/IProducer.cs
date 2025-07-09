@@ -182,6 +182,48 @@ namespace Confluent.Kafka
             Message<TKey, TValue> message,
             Action<DeliveryReport<TKey, TValue>> deliveryHandler = null);
 
+        /// <summary>
+        ///     Asynchronously send a single message to a
+        ///     Kafka topic partition.
+        /// </summary>
+        /// <param name="topic"> 
+        ///     Topic of the message to produce to
+        /// </param>
+        /// <param name="val">
+        ///     Value bytes to produce
+        /// </param>
+        /// <param name="key">
+        ///     Key bytes to produce
+        /// </param>
+        /// <param name="timestamp">
+        ///     Timestamp of the message to be produced
+        /// </param>
+        /// <param name="partition">
+        ///     Partition of the message to produce to
+        /// </param>
+        /// <param name="headers">
+        ///     Optional headers of the message to be produced
+        /// </param>
+        /// <exception cref="ProduceException{TKey,TValue}">
+        ///     Thrown in response to any error that is known
+        ///     immediately (excluding user application logic errors),
+        ///     for example ErrorCode.Local_QueueFull.
+        /// </exception>
+        /// <exception cref="System.ArgumentException">
+        ///     Thrown in response to invalid argument values.
+        /// </exception>
+        /// <exception cref="System.InvalidOperationException">
+        ///     Thrown in response to error conditions that reflect
+        ///     an error in the application logic of the calling
+        ///     application.
+        /// </exception>
+        void Produce(
+            string topic,
+            ReadOnlySpan<byte> val,
+            ReadOnlySpan<byte> key,
+            Timestamp timestamp,
+            Partition partition,
+            Headers headers);
         
         /// <summary>
         ///     Poll for callback events.
