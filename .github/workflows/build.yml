@@ -1,0 +1,86 @@
+name: 'confluent-kafka-dotnet build pipeline'
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+on:
+  push:
+  pull_request:
+
+jobs:
+
+  build-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-13] # macos-13 for x86_x64 arch
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: | 
+              6.0.x
+              8.0.x
+      - name: Build and test
+        run: |
+          dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          dotnet restore
+          dotnet test -c Release test/Confluent.Kafka.UnitTests/Confluent.Kafka.UnitTests.csproj
+
+  package:
+    needs:  [build-test]
+    runs-on: windows-latest
+    steps:
+      
+      - name: Show default environment variables
+        run: |
+          echo "The job_id is: $GITHUB_JOB"   # reference the default environment variables
+          echo "The id of this action is: $GITHUB_ACTION"   # reference the default environment variables
+          echo "The run id is: $GITHUB_RUN_ID"
+          echo "The GitHub Actor's username is: $GITHUB_ACTOR"
+          echo "GitHub SHA: $GITHUB_SHA"
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: | 
+              6.0.x
+              8.0.x
+      - name: Build and create packages
+        run: |
+          dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          dotnet restore
+          dotnet build Confluent.Kafka.sln -c Release
+
+          # Different packaging for tagged vs untagged builds
+          if ($env:GITHUB_REF -match '^refs/tags/') {
+            $suffix = "gr"
+          } else {
+            $suffix = "ci-$env:GITHUB_RUN_ID"
+          }
+
+          dotnet pack src/Confluent.Kafka/Confluent.Kafka.csproj --output dist -c Release --version-suffix $suffix 
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+     
+  # Publish NuGet packages when a tag is pushed.
+  # Tests need to succeed for all components and on all platforms first,
+  # including having a tag name that matches the version number.
+  publish-release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download NuGet package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist
+      - name: Publish to NuGet
+        run: |
+          dotnet nuget push "dist/Confluent.Kafka*.nupkg" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --api-key ${{ github.token }}
