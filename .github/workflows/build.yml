@@ -25,8 +25,7 @@ jobs:
       - name: Build and test
         run: |
           dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-          dotnet restore
-          dotnet test -c Release test/Confluent.Kafka.UnitTests/Confluent.Kafka.UnitTests.csproj
+          dotnet test -c Release /p:TreatWarningsAsErrors=true test/Confluent.Kafka.UnitTests/Confluent.Kafka.UnitTests.csproj
 
   package:
     needs:  [build-test]
@@ -50,17 +49,22 @@ jobs:
       - name: Build and create packages
         run: |
           dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-          dotnet restore
           dotnet build Confluent.Kafka.sln -c Release
 
           # Different packaging for tagged vs untagged builds
+          $proj_version = (dotnet msbuild ./src/Confluent.Kafka/Confluent.Kafka.csproj -getproperty:VersionPrefix)
           if ($env:GITHUB_REF -match '^refs/tags/') {
-            $suffix = "gr"
+            $tag_version = $env:GITHUB_REF -replace '^refs/tags/v', ''
+            if ($tag_version -ne $proj_version) {
+              Write-Output "::error title=Version mismatch::Tag version '$tag_version' does not match project version '$proj_version'."
+              exit 1
+            }
           } else {
-            $suffix = "ci-$env:GITHUB_RUN_ID"
+            $version_components = $proj_version -split '\+'
+            $version_args = @("/p:Version=$($version_components[0])-ci-$env:GITHUB_RUN_ID+$($version_components[1])")
           }
 
-          dotnet pack src/Confluent.Kafka/Confluent.Kafka.csproj --output dist -c Release --version-suffix $suffix 
+          dotnet pack src/Confluent.Kafka/Confluent.Kafka.csproj --output dist -c Release @version_args
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
