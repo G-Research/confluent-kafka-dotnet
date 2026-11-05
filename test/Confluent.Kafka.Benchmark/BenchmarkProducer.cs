@@ -180,5 +180,116 @@ namespace Confluent.Kafka.Benchmark
         /// </summary>
         public static long DeliveryHandlerProduce(string bootstrapServers, string topic, int nMessages, int msgSize, int nHeaders, int nTests, string username, string password)
             => BenchmarkProducerImpl(bootstrapServers, topic, nMessages, msgSize, nTests, nHeaders, true, username, password);
+        
+        public static long BenchmarkAllocFree(
+            string bootstrapServers, 
+            string topic, 
+            int nMessages,
+            int msgSize,
+            int nTests, 
+            int nHeaders,
+            string username,
+            string password)
+        {
+            // mirrors the librdkafka performance test example.
+            var config = new ProducerConfig
+            {
+                BootstrapServers = bootstrapServers,
+                QueueBufferingMaxMessages = 2000000,
+                MessageSendMaxRetries = 3,
+                RetryBackoffMs = 500 ,
+                LingerMs = 100,
+                SaslUsername = username,
+                SaslPassword = password,
+                SecurityProtocol = username == null ? SecurityProtocol.Plaintext : SecurityProtocol.SaslSsl,
+                SaslMechanism = SaslMechanism.Plain
+            };
+
+            DeliveryResult<Null, byte[]> firstDeliveryReport = null;
+
+            Headers headers = null;
+            if (nHeaders > 0)
+            {
+                headers = new Headers();
+                for (int i=0; i<nHeaders; ++i)
+                {
+                    headers.Add($"header-{i+1}", new byte[] { (byte)i, (byte)(i+1), (byte)(i+2), (byte)(i+3) });
+                }
+            }
+
+            var autoEvent = new AutoResetEvent(false);
+            var msgCount = nMessages;
+
+            Experimental.AllocFreeDeliveryHandler allocFreeDeliveryHandler = (in Experimental.MessageReader mr) =>
+            {
+                if (mr.ErrorCode != ErrorCode.NoError)
+                {
+                    // Not interested in benchmark results in the (unlikely) event there is an error.
+                    Console.WriteLine($"A error occured producing a message: {mr.ErrorCode}");
+                    Environment.Exit(1); // note: exceptions do not currently propagate to calling code from a deliveryHandler method.
+                }
+
+                if (--msgCount == 0)
+                {
+                    autoEvent.Set();
+                }
+            };
+
+            
+            using (var producer = new ProducerBuilder<Null, byte[]>(config).SetAllocFreeDeliveryHandler(allocFreeDeliveryHandler).Build())
+            {
+                for (var j=0; j<nTests; j += 1)
+                {
+                    Console.WriteLine($"{producer.Name} producing (alloc-free) on {topic} ");
+
+                    byte cnt = 0;
+                    var val = new byte[msgSize].Select(a => ++cnt).ToArray();
+
+                    // this avoids including connection setup, topic creation time, etc.. in result.
+                    firstDeliveryReport = producer.ProduceAsync(topic, new Message<Null, byte[]> { Value = val, Headers = headers }).Result;
+
+                    var startTime = DateTime.Now.Ticks;
+
+                    for (int i = 0; i < nMessages; i += 1)
+                    {
+                        try
+                        {
+                            producer.Produce(topic, val.AsSpan(), ReadOnlySpan<byte>.Empty, Timestamp.Default, Partition.Any, null);
+                        }
+                        catch (ProduceException<Null, byte[]> ex)
+                        {
+                            if (ex.Error.Code == ErrorCode.Local_QueueFull)
+                            {
+                                producer.Poll(TimeSpan.FromSeconds(1));
+                                i -= 1;
+                            }
+                            else
+                            {
+                                throw;
+                            }
+                        }
+                    }
+
+                    while (true)
+                    {
+                        if (autoEvent.WaitOne(TimeSpan.FromSeconds(1)))
+                        {
+                            break;
+                        }
+                        Console.WriteLine(msgCount);
+                    }
+                    
+
+                    var duration = DateTime.Now.Ticks - startTime;
+
+                    Console.WriteLine($"Produced {nMessages} messages in {duration/10000.0:F0}ms");
+                    Console.WriteLine($"{nMessages / (duration/10000.0):F0}k msg/s");
+                }
+
+                producer.Flush(TimeSpan.FromSeconds(10));
+            }
+
+            return firstDeliveryReport.Offset;
+        }
     }
 }
