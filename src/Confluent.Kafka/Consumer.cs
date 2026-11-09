@@ -1126,7 +1126,7 @@ namespace Confluent.Kafka
 
 
         /// <inheritdoc/>
-        public unsafe bool ConsumeWithCallback(int millisecondsTimeout, Experimental.AllocFreeConsumeCallback callback)
+        public unsafe bool ConsumeWithCallback(int millisecondsTimeout, AllocFreeConsumeCallback callback)
         {
             if (callback == null)
                 throw new ArgumentNullException(nameof(callback));
@@ -1161,7 +1161,7 @@ namespace Confluent.Kafka
                 }
 
                 // Create the reader and invoke the callback
-                var reader = new Experimental.MessageReader(msg);
+                var reader = new MessageReader(msg);
                 callback(in reader);
                 return true;
             }

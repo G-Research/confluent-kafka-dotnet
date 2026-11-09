@@ -98,7 +98,7 @@ namespace Confluent.Kafka.Benchmark
                     consumer.Assign(new List<TopicPartitionOffset>() { new TopicPartitionOffset(topic, 0, firstMessageOffset) });
 
                     var cnt = 0;
-                    Experimental.AllocFreeConsumeCallback callback = (in Experimental.MessageReader mr) => 
+                    AllocFreeConsumeCallback callback = (in MessageReader mr) => 
                     {
                         if (mr.ErrorCode != ErrorCode.NoError)
                         {

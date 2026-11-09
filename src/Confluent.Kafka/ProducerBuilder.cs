@@ -77,7 +77,7 @@ namespace Confluent.Kafka
         /// <summary>
         ///     The configured alloc-free delivery handler.
         /// </summary>
-        internal protected Experimental.AllocFreeDeliveryHandler AllocFreeDeliveryHandler { get; set; }
+        internal protected AllocFreeDeliveryHandler AllocFreeDeliveryHandler { get; set; }
 
         /// <summary>
         ///     The configured statistics handler.
@@ -296,7 +296,7 @@ namespace Confluent.Kafka
         /// <summary>
         ///     Set a custom alloc-free delivery handler
         /// </summary>
-        public ProducerBuilder<TKey, TValue> SetAllocFreeDeliveryHandler(Experimental.AllocFreeDeliveryHandler allocFreeDeliveryHandler)
+        public ProducerBuilder<TKey, TValue> SetAllocFreeDeliveryHandler(AllocFreeDeliveryHandler allocFreeDeliveryHandler)
         {
             if (this.AllocFreeDeliveryHandler != null)
             {

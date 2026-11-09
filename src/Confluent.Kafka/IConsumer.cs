@@ -118,7 +118,7 @@ namespace Confluent.Kafka
         /// <param name="callback">Callback to invoke with the message reader</param>
         /// <returns>True if a message was consumed, false if timeout occurred</returns>
         /// <exception cref="ConsumeException">Thrown when consumption fails</exception>
-        bool ConsumeWithCallback(int millisecondsTimeout, Experimental.AllocFreeConsumeCallback callback);
+        bool ConsumeWithCallback(int millisecondsTimeout, AllocFreeConsumeCallback callback);
 
         /// <summary>
         ///     Gets the (dynamic) group member id of

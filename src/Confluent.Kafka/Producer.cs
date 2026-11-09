@@ -37,7 +37,7 @@ namespace Confluent.Kafka
             public IEnumerable<KeyValuePair<string, string>> config;
             public Action<Error> errorHandler;
             public Action<LogMessage> logHandler;
-            public Experimental.AllocFreeDeliveryHandler AllocFreeAllocFreeDeliveryHandler;
+            public AllocFreeDeliveryHandler AllocFreeAllocFreeDeliveryHandler;
             public Action<string> statisticsHandler;
             public Action<string> oAuthBearerTokenRefreshHandler;
             public Dictionary<string, PartitionerDelegate> partitioners;
@@ -195,7 +195,7 @@ namespace Confluent.Kafka
 
 
         private Action<LogMessage> logHandler;
-        private Experimental.AllocFreeDeliveryHandler allocFreeAllocFreeDeliveryHandler;
+        private AllocFreeDeliveryHandler allocFreeAllocFreeDeliveryHandler;
         private object loggerLockObj = new object();
         private Librdkafka.LogDelegate logCallbackDelegate;
         private void LogCallback(IntPtr rk, SyslogLevel level, string fac, string buf)
@@ -227,7 +227,7 @@ namespace Confluent.Kafka
                 if (allocFreeAllocFreeDeliveryHandler != null)
                 {
                     // Create the reader and invoke the callback
-                    var reader = new Experimental.MessageReader(msg);
+                    var reader = new MessageReader(msg);
                     allocFreeAllocFreeDeliveryHandler.Invoke(reader);
                     return;
                 }

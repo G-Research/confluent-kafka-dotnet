@@ -220,7 +220,7 @@ namespace Confluent.Kafka.Benchmark
             var autoEvent = new AutoResetEvent(false);
             var msgCount = nMessages;
 
-            Experimental.AllocFreeDeliveryHandler allocFreeDeliveryHandler = (in Experimental.MessageReader mr) =>
+            AllocFreeDeliveryHandler allocFreeDeliveryHandler = (in MessageReader mr) =>
             {
                 if (mr.ErrorCode != ErrorCode.NoError)
                 {
