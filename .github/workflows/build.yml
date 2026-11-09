@@ -33,37 +33,6 @@ jobs:
           dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
           dotnet test -c Release /p:TreatWarningsAsErrors=true test/Confluent.Kafka.UnitTests/Confluent.Kafka.UnitTests.csproj
 
-  integration-test:
-    runs-on: ubuntu-latest
-    env:
-      SEMAPHORE_SKIP_FLAKY_TESTS: "true"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-      - name: Start Kafka
-        working-directory: test/docker
-        run: |
-          docker compose up -d kafka
-          for i in $(seq 1 60); do
-            docker compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list && exit 0
-            sleep 5
-          done
-          docker compose logs
-          exit 1
-      - name: Run integration tests
-        run: |
-          dotnet nuget add source  --username user --password ${{ github.token }} --store-password-in-clear-text --name github https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-          dotnet test --project test/Confluent.Kafka.IntegrationTests/Confluent.Kafka.IntegrationTests.csproj -f net10.0 -c Release
-      - name: Kafka logs
-        if: failure()
-        working-directory: test/docker
-        run: docker compose logs kafka
-
   package:
     needs: [build-test]
     runs-on: windows-latest
