@@ -1,3 +1,18 @@
+# 2.16.0.2+gr
+
+## Enhancements
+
+* Add allocation-free produce and consume APIs, as proposed in
+  [#2543](https://github.com/confluentinc/confluent-kafka-dotnet/issues/2543):
+  * `IProducer.Produce` overload that takes the value and key as `ReadOnlySpan<byte>`.
+  * `ProducerBuilder.SetAllocFreeDeliveryHandler`, which receives delivery reports
+    as a `MessageReader`.
+  * `IConsumer.ConsumeWithCallback`, which passes the consumed message to an
+    `AllocFreeConsumeCallback` as a `MessageReader`.
+  * `MessageReader`, a `ref struct` that exposes the message key and value as
+    `ReadOnlySpan<byte>` without copying them.
+
+
 # 2.16.0
 
 ## New experimental features
