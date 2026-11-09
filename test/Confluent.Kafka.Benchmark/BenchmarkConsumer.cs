@@ -72,5 +72,55 @@ namespace Confluent.Kafka.Benchmark
 
         public static void Consume(string bootstrapServers, string topic, string group, long firstMessageOffset, int nMessages, int nHeaders, int nTests, string username, string password)
             => BenchmarkConsumerImpl(bootstrapServers, topic, group, firstMessageOffset, nMessages, nTests, nHeaders, username, password);
+
+        public static void ConsumeAllocFree(string bootstrapServers, string topic, string group,
+            long firstMessageOffset, int nMessages, int nHeaders, int nTests, string username, string password)
+        {
+            var consumerConfig = new ConsumerConfig
+            {
+                GroupId = group,
+                BootstrapServers = bootstrapServers,
+                SessionTimeoutMs = 6000,
+                ConsumeResultFields = nHeaders == 0 ? "none" : "headers",
+                QueuedMinMessages = 1000000,
+                SaslUsername = username,
+                SaslPassword = password,
+                SecurityProtocol = username == null ? SecurityProtocol.Plaintext : SecurityProtocol.SaslSsl,
+                SaslMechanism = SaslMechanism.Plain
+            };
+
+            using (var consumer = new ConsumerBuilder<Ignore, Ignore>(consumerConfig).Build())
+            {
+                for (var j=0; j<nTests; j += 1)
+                {
+                    Console.WriteLine($"{consumer.Name} consuming from {topic}");
+
+                    consumer.Assign(new List<TopicPartitionOffset>() { new TopicPartitionOffset(topic, 0, firstMessageOffset) });
+
+                    var cnt = 0;
+                    Experimental.AllocFreeConsumeCallback callback = (in Experimental.MessageReader mr) => 
+                    {
+                        if (mr.ErrorCode != ErrorCode.NoError)
+                        {
+                            cnt += 1;
+                        }
+                    };
+                    
+                    // consume 1 message before starting the timer to avoid including potential one-off delays.
+                    consumer.ConsumeWithCallback(1000, callback);
+
+                    long startTime = DateTime.Now.Ticks;
+                    while (cnt < nMessages-1)
+                    {
+                        consumer.ConsumeWithCallback(1000, callback);
+                    }
+
+                    var duration = DateTime.Now.Ticks - startTime;
+
+                    Console.WriteLine($"Consumed (alloc-free) {nMessages-1} messages in {duration/10000.0:F0}ms");
+                    Console.WriteLine($"{(nMessages-1) / (duration/10000.0):F0}k msg/s");
+                }
+            }
+        }
     }
 }
